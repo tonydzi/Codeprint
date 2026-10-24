@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { resolve, relative, extname, dirname, basename, join } from "node:path";
+import { resolve, relative as nativeRelative, extname, dirname, basename, join, sep } from "node:path";
 import madge from "madge";
 import { LANGUAGES, ALL_EXTENSIONS, EXT_TO_LANG, parseFile } from "./parsers.js";
 import type { GraphData, GraphNode, GraphEdge, NodeStatus, NodeCategory } from "./types.js";
@@ -31,6 +31,12 @@ const EXCLUDE_FILE_PATTERNS = [
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Project-relative path with "/" separators on every OS (node ids, category detection, madge keys). */
+function relative(from: string, to: string): string {
+  const rel = nativeRelative(from, to);
+  return sep === "/" ? rel : rel.split(sep).join("/");
+}
 
 function countLines(filePath: string): number {
   try {
@@ -500,7 +506,7 @@ function runKnip(root: string): { deadFiles: Set<string>; deadExports: Map<strin
   const deadFiles  = new Set<string>();
   const deadExports = new Map<string, string[]>();
   try {
-    const output = execSync("npx knip --reporter json 2>/dev/null", { cwd: root, encoding: "utf8", timeout: 60_000 });
+    const output = execSync("npx knip --reporter json", { cwd: root, encoding: "utf8", timeout: 60_000, stdio: ["ignore", "pipe", "ignore"] });
     const result = JSON.parse(output) as { files?: string[]; exports?: Record<string, string[]> };
     for (const f of result.files ?? [])                      deadFiles.add(resolve(root, f));
     for (const [f, s] of Object.entries(result.exports ?? {})) deadExports.set(resolve(root, f), s);
